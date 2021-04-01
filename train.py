@@ -1,4 +1,4 @@
-# Training script, simplified from the original, cutting out all non-essentials
+# Training script, simplified from the original, cutting out all non-essentials (like CLI access)
 # Mainly for use as quick reference while building other projects
 import collections
 
@@ -12,12 +12,7 @@ from retinanet import model
 from retinanet.dataloader import JSONDataset, collater, Resizer, AspectRatioBasedSampler, Augmenter, Normalizer
 from torch.utils.data import DataLoader
 
-from retinanet import coco_eval
-from retinanet import csv_eval
-
-assert torch.__version__.split('.')[0] == '1'
-
-save_prefix = 'bad' # saves network as {save_prefix}-retinanet-{iter} during intermediate steps
+save_prefix = 'bad' # saves nnet as {save_prefix}_retinanet_{iter/final} 
 csv_classes = '' # Path to file containing class list
 json_train = '' # Path to file containing json training annotations
 img_path = '' # Path to where the images are located
@@ -28,7 +23,7 @@ print('CUDA available: {}'.format(torch.cuda.is_available()))
 
 def main(args=None):
 
-    dataset_train = JSONDataset(train_file=json_train, class_list=csv_classes, img_path=img_path, transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
+    dataset_train = JSONDataset(train_file=json_train, class_file=csv_classes, img_path=img_path, transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
 
     sampler = AspectRatioBasedSampler(dataset_train, batch_size=2, drop_last=False)
     dataloader_train = DataLoader(dataset_train, num_workers=3, collate_fn=collater, batch_sampler=sampler)
@@ -122,7 +117,7 @@ def main(args=None):
 
     retinanet.eval()
 
-    torch.save(retinanet, 'model_final.pt')
+    torch.save(retinanet, f'{save_prefix}_retinanet_final.pt')
 
 
 if __name__ == '__main__':

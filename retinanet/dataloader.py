@@ -28,8 +28,8 @@ class JSONDataset(Dataset):
             train_file (string): JSON file with the following format:
                 {
                     [id]: {
-                        'intid': string,
-                        'class_id': int,
+                        'intid': int, #class ids are usually strings, this is the numeric representation used in trainign
+                        'class_id': string,
                         'x1': float = x1min/img_width
                         'x2': float = xymin/img_height
                         'y1': float
