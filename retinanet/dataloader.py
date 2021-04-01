@@ -1,3 +1,5 @@
+# Modified from original repo - added JSON Dataset, removed the others
+
 from __future__ import print_function, division
 import sys
 import os
@@ -11,68 +13,56 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
 from torch.utils.data.sampler import Sampler
 
+import skimage
 import skimage.io
 import skimage.transform
 import skimage.color
-import skimage
 from future.utils import raise_from
 
 from PIL import Image
 
-class CSVDataset(Dataset):
-    """CSV dataset."""
-
-    def __init__(self, train_file, class_list, transform=None):
+class JSONDataset(Dataset):
+    def __init__(self, train_file, class_file, img_path, transform=None):
         """
         Args:
-            train_file (string): CSV file with training annotations
-            class_list (string): CSV file with class list
+            train_file (string): JSON file with the following format:
+                {
+                    [id]: {
+                        'intid': string,
+                        'class_id': int,
+                        'x1': float = x1min/img_width
+                        'x2': float = xymin/img_height
+                        'y1': float
+                        'y2': float
+                    }
+                }
+            class_file (string): CSV file with the following format:
+                class_name,class_id
+            img_path (string): path to where the images can be found, expect: {img_path}/{img_id}.jpg to yield images
         """
         self.train_file = train_file
-        self.class_list = class_list
+        self.class_file = class_file
         self.transform = transform
+        self.img_path = img_path
 
-        # parse the provided class file
+        # parse class file
         try:
-            with self._open_for_csv(self.class_list) as file:
+            with open(self.class_file, 'r', newline='') as file:
                 self.classes = self.load_classes(csv.reader(file, delimiter=','))
         except ValueError as e:
-            raise(ValueError('invalid CSV class file: {}: {}'.format(self.class_list, e)))
+            raise ValueError(f'invalid CSV class file: {self.class_file}: {e}')
 
         self.labels = {}
         for key, value in self.classes.items():
             self.labels[value] = key
 
-        # csv with img_path, x1, y1, x2, y2, class_name
+        # parse json annotations
         try:
-            with self._open_for_csv(self.train_file) as file:
-                self.image_data = self._read_annotations(csv.reader(file, delimiter=','), self.classes)
+            with open(self.train_file) as f:
+                self.image_data = json.load(f)
         except ValueError as e:
-            raise(ValueError('invalid CSV annotations file: {}: {}'.format(self.train_file, e)))
-        self.image_names = list(self.image_data.keys())
-
-    def _parse(self, value, function, fmt):
-        """
-        Parse a string into a value, and format a nice ValueError if it fails.
-        Returns `function(value)`.
-        Any `ValueError` raised is catched and a new `ValueError` is raised
-        with message `fmt.format(e)`, where `e` is the caught `ValueError`.
-        """
-        try:
-            return function(value)
-        except ValueError as e:
-            raise_from(ValueError(fmt.format(e)), None)
-
-    def _open_for_csv(self, path):
-        """
-        Open a file with flags suitable for csv.reader.
-        This is different for python2 it means with mode 'rb',
-        for python3 this means 'r' with "universal newlines".
-        """
-        if sys.version_info[0] < 3:
-            return open(path, 'rb')
-        else:
-            return open(path, 'r', newline='')
+            raise ValueError(f'invalid JSON annotations file: {self.train_file}: {e}')
+        self.image_ids = list(self.image_data.keys())
 
     def load_classes(self, csv_reader):
         result = {}
@@ -81,23 +71,25 @@ class CSVDataset(Dataset):
             line += 1
 
             try:
-                class_name, class_id = row
+                class_name, class_id = row[:2]
             except ValueError:
                 raise(ValueError('line {}: format should be \'class_name,class_id\''.format(line)))
-            class_id = self._parse(class_id, int, 'line {}: malformed class ID: {{}}'.format(line))
+            class_id = int(class_id)
 
             if class_name in result:
-                raise ValueError('line {}: duplicate class name: \'{}\''.format(line, class_name))
+                raise ValueError(f'line {line}: duplicate class name: {class_name}')
             result[class_name] = class_id
         return result
 
     def __len__(self):
-        return len(self.image_names)
+        return len(self.image_ids)
 
     def __getitem__(self, idx):
 
         img = self.load_image(idx)
-        annot = self.load_annotations(idx)
+        height, width = img.shape[:2]
+
+        annot = self.load_annotations(idx, width, height)
         sample = {'img': img, 'annot': annot}
         if self.transform:
             sample = self.transform(sample)
@@ -105,79 +97,40 @@ class CSVDataset(Dataset):
         return sample
 
     def load_image(self, image_index):
-        img = skimage.io.imread(self.image_names[image_index])
+        img = skimage.io.imread(f"{self.img_path}/{self.image_ids[image_index]}.jpg")
 
         if len(img.shape) == 2:
             img = skimage.color.gray2rgb(img)
 
         return img.astype(np.float32)/255.0
 
-    def load_annotations(self, image_index):
+    def load_annotations(self, image_index, width, height):
         # get ground truth annotations
-        annotation_list = self.image_data[self.image_names[image_index]]
-        annotations     = np.zeros((0, 5))
-
-        # some images appear to miss annotations (like image with id 257034)
-        if len(annotation_list) == 0:
-            return annotations
+        annotation_list = self.image_data[self.image_ids[image_index]]
+        annotations = np.zeros((0, 5))
 
         # parse annotations
         for idx, a in enumerate(annotation_list):
             # some annotations have basically no width / height, skip them
-            x1 = a['x1']
-            x2 = a['x2']
-            y1 = a['y1']
-            y2 = a['y2']
+            x1 = a['x1'] * width
+            x2 = a['x2'] * width
+            y1 = a['y1'] * height
+            y2 = a['y2'] * height
 
             if (x2-x1) < 1 or (y2-y1) < 1:
                 continue
 
-            annotation        = np.zeros((1, 5))
+            annotation = np.zeros((1, 5))
             
-            annotation[0, 0] = x1
-            annotation[0, 1] = y1
-            annotation[0, 2] = x2
-            annotation[0, 3] = y2
+            annotation[0, 0] = int(round(x1))
+            annotation[0, 1] = int(round(y1))
+            annotation[0, 2] = int(round(x2))
+            annotation[0, 3] = int(round(y2))
 
-            annotation[0, 4]  = self.name_to_label(a['class'])
-            annotations       = np.append(annotations, annotation, axis=0)
+            annotation[0, 4] = int(a['intid'])
+            annotations = np.append(annotations, annotation, axis=0)
 
         return annotations
-
-    def _read_annotations(self, csv_reader, classes):
-        result = {}
-        for line, row in enumerate(csv_reader):
-            line += 1
-
-            try:
-                img_file, x1, y1, x2, y2, class_name = row[:6]
-            except ValueError:
-                raise_from(ValueError('line {}: format should be \'img_file,x1,y1,x2,y2,class_name\' or \'img_file,,,,,\''.format(line)), None)
-
-            if img_file not in result:
-                result[img_file] = []
-
-            # If a row contains only an image path, it's an image without annotations.
-            if (x1, y1, x2, y2, class_name) == ('', '', '', '', ''):
-                continue
-
-            x1 = self._parse(x1, int, 'line {}: malformed x1: {{}}'.format(line))
-            y1 = self._parse(y1, int, 'line {}: malformed y1: {{}}'.format(line))
-            x2 = self._parse(x2, int, 'line {}: malformed x2: {{}}'.format(line))
-            y2 = self._parse(y2, int, 'line {}: malformed y2: {{}}'.format(line))
-
-            # Check that the bounding box is valid.
-            if x2 <= x1:
-                raise ValueError('line {}: x2 ({}) must be higher than x1 ({})'.format(line, x2, x1))
-            if y2 <= y1:
-                raise ValueError('line {}: y2 ({}) must be higher than y1 ({})'.format(line, y2, y1))
-
-            # check if the current class name is correctly present
-            if class_name not in classes:
-                raise ValueError('line {}: unknown class name: \'{}\' (classes: {})'.format(line, class_name, classes))
-
-            result[img_file].append({'x1': x1, 'x2': x2, 'y1': y1, 'y2': y2, 'class': class_name})
-        return result
 
     def name_to_label(self, name):
         return self.classes[name]
@@ -189,7 +142,7 @@ class CSVDataset(Dataset):
         return max(self.classes.values()) + 1
 
     def image_aspect_ratio(self, image_index):
-        image = Image.open(self.image_names[image_index])
+        image = Image.open(f"{self.img_path}/{self.image_ids[image_index]}.jpg")
         return float(image.width) / float(image.height)
 
 
@@ -232,7 +185,7 @@ def collater(data):
     return {'img': padded_imgs, 'annot': annot_padded, 'scale': scales}
 
 class Resizer(object):
-    """Convert ndarrays in sample to Tensors."""
+    """Resize image"""
 
     def __call__(self, sample, min_side=608, max_side=1024):
         image, annots = sample['img'], sample['annot']
@@ -267,8 +220,6 @@ class Resizer(object):
 
 
 class Augmenter(object):
-    """Convert ndarrays in sample to Tensors."""
-
     def __call__(self, sample, flip_x=0.5):
 
         if np.random.rand() < flip_x:
@@ -291,7 +242,6 @@ class Augmenter(object):
 
 
 class Normalizer(object):
-
     def __init__(self):
         self.mean = np.array([[[0.485, 0.456, 0.406]]])
         self.std = np.array([[[0.229, 0.224, 0.225]]])
@@ -326,7 +276,6 @@ class UnNormalizer(object):
 
 
 class AspectRatioBasedSampler(Sampler):
-
     def __init__(self, data_source, batch_size, drop_last):
         self.data_source = data_source
         self.batch_size = batch_size
