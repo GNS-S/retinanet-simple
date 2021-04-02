@@ -14,7 +14,7 @@ def load_classes(csv_reader):
         line += 1
 
         try:
-            class_name, class_id = row
+            class_name, class_id = row[:2]
         except ValueError:
             raise(ValueError('line {}: format should be \'class_name,class_id\''.format(line)))
         class_id = int(class_id)
