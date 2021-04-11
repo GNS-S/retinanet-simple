@@ -154,7 +154,7 @@ class ClassificationModel(nn.Module):
 
 class ResNet(nn.Module):
 
-    def __init__(self, num_classes, block, layers):
+    def __init__(self, num_classes, block, layers, loss=losses.FocalLoss()):
         self.inplanes = 64
         super(ResNet, self).__init__()
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
@@ -186,7 +186,9 @@ class ResNet(nn.Module):
 
         self.clipBoxes = ClipBoxes()
 
-        self.focalLoss = losses.FocalLoss()
+        print('Model initialised with:')
+        print(type(loss).__name__)
+        self.loss = loss
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -250,11 +252,10 @@ class ResNet(nn.Module):
         regression = torch.cat([self.regressionModel(feature) for feature in features], dim=1)
 
         classification = torch.cat([self.classificationModel(feature) for feature in features], dim=1)
-
         anchors = self.anchors(img_batch)
 
         if self.training:
-            return self.focalLoss(classification, regression, anchors, annotations)
+            return self.loss(classification, regression, anchors, annotations)
         else:
             transformed_anchors = self.regressBoxes(anchors, regression)
             transformed_anchors = self.clipBoxes(transformed_anchors, img_batch)

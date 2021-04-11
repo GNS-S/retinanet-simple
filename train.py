@@ -8,16 +8,17 @@ import torch
 import torch.optim as optim
 from torchvision import transforms
 
+from retinanet import losses
 from retinanet import model
 from retinanet.dataloader import JSONDataset, collater, Resizer, AspectRatioBasedSampler, Augmenter, Normalizer
 from torch.utils.data import DataLoader
 
 save_prefix = 'bad' # saves nnet as {save_prefix}_retinanet_{iter/final} 
-csv_classes = '' # Path to file containing class list
-json_train = '' # Path to file containing json training annotations
-img_path = '' # Path to where the images are located
+csv_classes = './classes.csv' # Path to file containing class list
+json_train = './f.json' # Path to file containing json training annotations
+img_path = './images' # Path to where the images are located
 depth = 50 # Resnet depth, must be one of 18, 34, 50, 101, 152
-epochs = 100 # Number of epochs
+epochs = 1 # Number of epochs
 
 print('CUDA available: {}'.format(torch.cuda.is_available()))
 
@@ -25,7 +26,7 @@ def main(args=None):
 
     dataset_train = JSONDataset(train_file=json_train, class_file=csv_classes, img_path=img_path, transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
 
-    sampler = AspectRatioBasedSampler(dataset_train, batch_size=2, drop_last=False)
+    sampler = AspectRatioBasedSampler(dataset_train, batch_size=1, drop_last=False)
     dataloader_train = DataLoader(dataset_train, num_workers=3, collate_fn=collater, batch_sampler=sampler)
 
     # Create the model
@@ -34,7 +35,7 @@ def main(args=None):
     elif depth == 34:
         retinanet = model.resnet34(num_classes=dataset_train.num_classes(), pretrained=True)
     elif depth == 50:
-        retinanet = model.resnet50(num_classes=dataset_train.num_classes(), pretrained=True)
+        retinanet = model.resnet50(num_classes=dataset_train.num_classes(), pretrained=True, loss=losses.DiceLossCombined())
     elif depth == 101:
         retinanet = model.resnet101(num_classes=dataset_train.num_classes(), pretrained=True)
     elif depth == 152:
@@ -113,11 +114,11 @@ def main(args=None):
 
         scheduler.step(np.mean(epoch_loss))
 
-        torch.save(retinanet.module, '{}_retinanet_{}.pt'.format(save_prefix, epoch_num))
+        #torch.save(retinanet.module, '{}_retinanet_{}.pt'.format(save_prefix, epoch_num))
 
     retinanet.eval()
 
-    torch.save(retinanet, f'{save_prefix}_retinanet_final.pt')
+    #torch.save(retinanet, f'{save_prefix}_retinanet_final.pt')
 
 
 if __name__ == '__main__':
