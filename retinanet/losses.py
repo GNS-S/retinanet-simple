@@ -329,6 +329,7 @@ class DiceLossCombined(nn.Module):
             if torch.cuda.is_available():
                 targets = targets.cuda()
 
+            # assign targets according to anchor iou, as described in the FCOS paper
             targets[negative_indices, :] = 0
             targets[positive_indices, :] = 0
             targets[positive_indices, assigned_annotations[positive_indices, 4].long()] = 1
@@ -336,7 +337,7 @@ class DiceLossCombined(nn.Module):
 
             use = positive_indices + negative_indices
 
-            # cls_loss = focal_weight * torch.pow(bce, gamma)
+            # use dice loss
             cls_loss = self.clsloss(classification[use], targets[use])
 
             classification_losses.append(cls_loss.sum()/torch.clamp(num_positive_anchors.float(), min=1.0))
