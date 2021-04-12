@@ -13,9 +13,9 @@ from retinanet import model
 from retinanet.dataloader import JSONDataset, collater, Resizer, AspectRatioBasedSampler, Augmenter, Normalizer
 from torch.utils.data import DataLoader
 
-save_prefix = 'bad' # saves nnet as {save_prefix}_retinanet_{iter/final} 
+save_prefix = 'dice' # saves nnet as {save_prefix}_retinanet_{iter/final} 
 csv_classes = './classes.csv' # Path to file containing class list
-json_train = './fuck.json' # Path to file containing json training annotations
+json_train = './annotation.json' # Path to file containing json training annotations
 img_path = './images' # Path to where the images are located
 depth = 50 # Resnet depth, must be one of 18, 34, 50, 101, 152
 epochs = 1 # Number of epochs
@@ -69,6 +69,7 @@ def main(args=None):
 
     print('Num training images: {}'.format(len(dataset_train)))
 
+    start_epoch = 0
     if start_epoch != 0:
         state_path = '/content/drive/MyDrive/GMM/dice_retinanet_1.pt'
         state = torch.load(state_path)
