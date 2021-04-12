@@ -1,4 +1,4 @@
-# retinanet-simple
+# retinanet-simple-dice
 
 An even more simplified / ruined version of the [RetinaNet implemention by yhenon](https://github.com/yhenon/pytorch-retinanet)
 
