@@ -15,10 +15,11 @@ from torch.utils.data import DataLoader
 
 save_prefix = 'bad' # saves nnet as {save_prefix}_retinanet_{iter/final} 
 csv_classes = './classes.csv' # Path to file containing class list
-json_train = './f.json' # Path to file containing json training annotations
+json_train = './fuck.json' # Path to file containing json training annotations
 img_path = './images' # Path to where the images are located
 depth = 50 # Resnet depth, must be one of 18, 34, 50, 101, 152
 epochs = 1 # Number of epochs
+start_epoch = 0
 
 print('CUDA available: {}'.format(torch.cuda.is_available()))
 
@@ -68,7 +69,17 @@ def main(args=None):
 
     print('Num training images: {}'.format(len(dataset_train)))
 
-    for epoch_num in range(epochs):
+    if start_epoch != 0:
+        state_path = '/content/drive/MyDrive/GMM/dice_retinanet_1.pt'
+        state = torch.load(state_path)
+        retinanet.load_state_dict(state['state_dict'])
+        optimizer.load_state_dict(state['optimizer'])
+        start_epoch = state['epoch'] + 1
+        retinanet.training = True
+        retinanet.train()
+        retinanet.module.freeze_bn()
+
+    for epoch_num in range(start_epoch, start_epoch + epochs):
 
         retinanet.train()
         retinanet.module.freeze_bn()
@@ -114,11 +125,17 @@ def main(args=None):
 
         scheduler.step(np.mean(epoch_loss))
 
-        #torch.save(retinanet.module, '{}_retinanet_{}.pt'.format(save_prefix, epoch_num))
+        state = {
+            'epoch': epoch_num,
+            'state_dict': retinanet.state_dict(),
+            'optimizer': optimizer.state_dict()
+        }
+        torch.save(state, f'./{save_prefix}_retinanet_{epoch_num}.pt')
 
     retinanet.eval()
 
-    #torch.save(retinanet, f'{save_prefix}_retinanet_final.pt')
+    torch.save(retinanet, f'./{save_prefix}_retinanet_final.pt')
+    torch.save(retinanet.state_dict(), f'./{save_prefix}_retinanet_final_sd.pt')
 
 
 if __name__ == '__main__':

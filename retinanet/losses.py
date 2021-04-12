@@ -252,6 +252,10 @@ class DiceLoss(nn.Module):
         return total_loss/target.shape[1]
 
 class DiceLossCombined(nn.Module):
+    '''
+    Dice loss used for classification
+    Smooth L1 loss used for bbox regression
+    '''
     def __init__(self):
         super(DiceLossCombined, self).__init__()
         self.clsloss = DiceLoss()
