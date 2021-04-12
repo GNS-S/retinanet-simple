@@ -7,8 +7,8 @@ import cv2
 import random
 
 images_dir = f'./images-test'
-model_path = f'./testdiceloss_retinanet_final.pt'
-csv_classes = f'./annotations/classes.csv'
+model_path = f'./models_meta/dice_retinanet_final.pt'
+csv_classes = f'./models_meta/classes-dice.csv'
 
 def load_classes(csv_reader):
     result = {}
