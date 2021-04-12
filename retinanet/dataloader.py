@@ -104,10 +104,14 @@ class JSONDataset(Dataset):
 
         return img.astype(np.float32)/255.0
 
-    def load_annotations(self, image_index, width, height):
+    def load_annotations(self, image_index, width=None, height=None):
         # get ground truth annotations
         annotation_list = self.image_data[self.image_ids[image_index]]
         annotations = np.zeros((0, 5))
+
+        if width == None and height == None:
+            img = self.load_image(image_index)
+            height, width = img.shape[:2]
 
         # parse annotations
         for idx, a in enumerate(annotation_list):
@@ -137,6 +141,12 @@ class JSONDataset(Dataset):
 
     def label_to_name(self, label):
         return self.labels[label]
+
+    def get_classlist(self):
+        return list(self.labels.keys())
+
+    def has_label(self, label):
+        return label in self.labels
 
     def num_classes(self):
         return max(self.classes.values()) + 1

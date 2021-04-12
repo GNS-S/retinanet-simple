@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import torch.optim as optim
 from torchvision import transforms
+from retinanet import val
 
 from retinanet import losses
 from retinanet import model
@@ -15,8 +16,13 @@ from torch.utils.data import DataLoader
 
 save_prefix = 'dice' # saves nnet as {save_prefix}_retinanet_{iter/final} 
 csv_classes = './classes.csv' # Path to file containing class list
-json_train = './annotation.json' # Path to file containing json training annotations
+json_train = './train.json' # Path to file containing json training annotations
 img_path = './images' # Path to where the images are located
+
+use_val = True
+img_path_val = './images-val'
+json_val = './annotations-nz-validation.json'
+
 depth = 50 # Resnet depth, must be one of 18, 34, 50, 101, 152
 epochs = 1 # Number of epochs
 start_epoch = 0
@@ -29,6 +35,11 @@ def main(args=None):
 
     sampler = AspectRatioBasedSampler(dataset_train, batch_size=1, drop_last=False)
     dataloader_train = DataLoader(dataset_train, num_workers=3, collate_fn=collater, batch_sampler=sampler)
+
+    if use_val:
+        dataset_val = JSONDataset(train_file=json_val, class_file=csv_classes, img_path=img_path_val, transform=transforms.Compose([Normalizer(), Resizer()]))
+        sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=1, drop_last=False)
+        dataloader_val = DataLoader(dataset_val, num_workers=3, collate_fn=collater, batch_sampler=sampler_val)
 
     # Create the model
     if depth == 18:
@@ -125,6 +136,10 @@ def main(args=None):
                 continue
 
         scheduler.step(np.mean(epoch_loss))
+
+        if use_val:
+            print('Evaluating dataset')
+            mAP = val.evaluate(dataset_val, retinanet, save_path='.')
 
         state = {
             'epoch': epoch_num,
