@@ -16,7 +16,7 @@ elif SPLIT == 'test':
 LIMIT = 1000
 classes_l = ['Bee', 'Fruit', 'Seafood']
 classes_to_intid = {
-  cl: i+1 for i, cl in enumerate(classes_l)
+  cl: i for i, cl in enumerate(classes_l)
 }
 classes = {}
 
