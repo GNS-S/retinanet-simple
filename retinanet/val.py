@@ -239,7 +239,7 @@ def evaluate(
     print('\nmAP:')
     for label in range(generator.num_classes()):
         label_name = generator.label_to_name(label)
-        if (label_name != '0'):
+        if not label_name.isnumeric():
             print('{}: {}'.format(label_name, average_precisions[label][0]))
             precision, recall = p_r[label]
             print("Precision: ",precision[-1] if len(precision) > 0 else 0)
