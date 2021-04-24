@@ -28,12 +28,11 @@ class JSONDataset(Dataset):
             train_file (string): JSON file with the following format:
                 {
                     [id]: {
-                        'intid': int, #class ids are usually strings, this is the numeric representation used in trainign
-                        'class_id': string,
-                        'x1': float = x1min/img_width
-                        'x2': float = xymin/img_height
-                        'y1': float
-                        'y2': float
+                        'intid': int, #class ids are usually strings, this is the numeric representation used in training
+                        'x1': float = x1/img_width
+                        'x2': float = x2/img_width
+                        'y1': float = y1/img_height
+                        'y2': float = y2/img_height
                     }
                 }
             class_file (string): CSV file with the following format:
